@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+    <name>Joker Duality Fix (+red chests, +teleport 2.0)</name>
+    <directory>joker duality fix</directory>
+    <id>3471287254</id>
+    <description>If you have Duality, the game doesn't let you choose between an angel or devil room when you use a Joker card. This mod will teleport you to a new room where you can choose.
+
+As an added bonus, red chests and Teleport 2.0 are also supported.
+
+This mod requires REPENTOGON.</description>
+    <version>1.1</version>
+    <visibility>Public</visibility>
+    <tag id="Lua"/>
+    <tag id="Rooms"/>
+    <tag id="Tweaks"/>
+</metadata>
