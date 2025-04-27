@@ -99,6 +99,11 @@ if REPENTOGON then
   end
   
   function mod:gotoDebugRoom(player)
+    -- reset debug room flags (just in case)
+    local level = game:GetLevel()
+    local dbgRoom = level:GetRoomByIdx(GridRooms.ROOM_DEBUG_IDX, Dimension.CURRENT)
+    dbgRoom.Flags = RoomDescriptor.FLAG_NO_REWARD -- FLAG_RED_ROOM
+    
     Isaac.ExecuteCommand('goto s.angel') -- angel over devil so we don't trigger STATE_DEVILROOM_VISITED
     game:StartRoomTransition(GridRooms.ROOM_DEBUG_IDX, Direction.NO_DIRECTION, RoomTransitionAnim.TELEPORT, player, Dimension.CURRENT)
     mod.handleNewRoom = true
@@ -119,7 +124,6 @@ if REPENTOGON then
     end
   end
   
-  -- potential todo: MC_PRE_SPAWN_CLEAN_AWARD
   function mod:clearRoom()
     local room = game:GetRoom()
     
