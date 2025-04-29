@@ -9,6 +9,11 @@ if REPENTOGON then
   mod.state = {}
   mod.state.previousRoomIdx = -1 -- don't get stuck in an infinite loop off the map
   
+  function mod:localize(category, key)
+    local s = Isaac.GetString(category, key)
+    return (s == nil or s == 'StringTable::InvalidCategory' or s == 'StringTable::InvalidKey') and key or s
+  end
+  
   function mod:onGameStart(isContinue)
     if isContinue and mod:HasData() then
       local _, state = pcall(json.decode, mod:LoadData())
@@ -43,6 +48,7 @@ if REPENTOGON then
       return
     end
     
+    local hud = game:GetHUD()
     local level = game:GetLevel()
     local room = level:GetCurrentRoom()
     local roomDesc = level:GetCurrentRoomDesc()
@@ -52,7 +58,8 @@ if REPENTOGON then
         mod:clearRoom()
         mod:centerPlayers()
         mod:updateRoomColors()
-        room:TrySpawnDevilRoomDoor(true, true)
+        hud:ShowItemText(mod:localize('Items', '#DUALITY_NAME'), mod:localize('Items', '#DUALITY_DESCRIPTION'), false)
+        room:TrySpawnDevilRoomDoor(false, true) -- no animation/sound if we're displaying text
         room:Update() -- looks better when continuing
       elseif roomDesc.GridIndex == GridRooms.ROOM_DEVIL_IDX then
         mod:fixDevilRoomDoors()
@@ -157,10 +164,12 @@ if REPENTOGON then
   function mod:fixDevilRoomDoors()
     local room = game:GetRoom()
     
-    for i = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do
-      local door = room:GetDoor(i)
-      if door and door.TargetRoomIndex == GridRooms.ROOM_DEBUG_IDX and mod.state.previousRoomIdx >= 0 then
-        door.TargetRoomIndex = mod.state.previousRoomIdx
+    if mod.state.previousRoomIdx >= 0 then
+      for i = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do
+        local door = room:GetDoor(i)
+        if door and door.TargetRoomIndex == GridRooms.ROOM_DEBUG_IDX then
+          door.TargetRoomIndex = mod.state.previousRoomIdx
+        end
       end
     end
   end
@@ -185,7 +194,6 @@ if REPENTOGON then
       local roomDesc = rooms:Get(i)
       -- when you kill mausoleum heart, it sets clear=true for all non-ultrasecret rooms
       if not roomDesc.Clear and roomDesc:GetDimension() == dimension and roomDesc.GridIndex >= 0 and roomDesc.Data then
-        -- todo: test unused room types: teleporter, teleporter exit, etc
         if room:IsMirrorWorld() or roomDesc.Data.Type ~= RoomType.ROOM_ULTRASECRET then -- Dimension.MIRROR
           return false
         end
