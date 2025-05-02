@@ -60,8 +60,8 @@ if REPENTOGON then
       mod:clearRoom()
       mod:centerPlayers()
       mod:updateRoomColors()
+      mod:spawnDevilRoomDoor()
       hud:ShowItemText(mod:localize('Items', '#DUALITY_NAME'), mod:localize('Items', '#DUALITY_DESCRIPTION'), false)
-      room:TrySpawnDevilRoomDoor(false, true) -- no animation/sound if we're displaying text
       room:Update() -- looks better when continuing
     else
       if roomDesc.GridIndex == GridRooms.ROOM_DEVIL_IDX and (room:GetType() == RoomType.ROOM_DEVIL or room:GetType() == RoomType.ROOM_ANGEL) then
@@ -117,6 +117,13 @@ if REPENTOGON then
     Isaac.ExecuteCommand('goto s.angel') -- angel over devil so we don't trigger STATE_DEVILROOM_VISITED
     game:StartRoomTransition(GridRooms.ROOM_DEBUG_IDX, Direction.NO_DIRECTION, RoomTransitionAnim.TELEPORT, player, Dimension.CURRENT)
     mod.state.handleNewRoom = true
+  end
+  
+  function mod:spawnDevilRoomDoor()
+    local room = game:GetRoom()
+    local lastDevilRoomStage = game:GetLastDevilRoomStage()
+    room:TrySpawnDevilRoomDoor(false, true)        -- no animation/sound if we're displaying text
+    game:SetLastDevilRoomStage(lastDevilRoomStage) -- reset last devil room stage (normal joker behavior)
   end
   
   -- mimic red room colors
