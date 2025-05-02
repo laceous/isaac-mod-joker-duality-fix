@@ -4,9 +4,9 @@ local game = Game()
 
 if REPENTOGON then
   mod.onGameStartHasRun = false
-  mod.handleNewRoom = false
   
   mod.state = {}
+  mod.state.handleNewRoom = false
   mod.state.previousRoomIdx = -1 -- don't get stuck in an infinite loop off the map
   
   function mod:localize(category, key)
@@ -19,6 +19,9 @@ if REPENTOGON then
       local _, state = pcall(json.decode, mod:LoadData())
       
       if type(state) == 'table' then
+        if type(state.handleNewRoom) == 'boolean' then
+          mod.state.handleNewRoom = state.handleNewRoom -- stage api can break this on continue
+        end
         if math.type(state.previousRoomIdx) == 'integer' and state.previousRoomIdx >= 0 then
           mod.state.previousRoomIdx = state.previousRoomIdx
         end
@@ -26,21 +29,21 @@ if REPENTOGON then
     end
     
     mod.onGameStartHasRun = true
-    mod.handleNewRoom = isContinue -- stage api can break this
     mod:onNewRoom()
   end
   
   function mod:onGameExit(shouldSave)
     if shouldSave then
       mod:SaveData(json.encode(mod.state))
+      mod.state.handleNewRoom = false
       mod.state.previousRoomIdx = -1
     else
       mod.state.previousRoomIdx = -1
+      mod.state.handleNewRoom = false
       mod:SaveData(json.encode(mod.state))
     end
     
     mod.onGameStartHasRun = false
-    mod.handleNewRoom = false
   end
   
   function mod:onNewRoom()
@@ -53,24 +56,24 @@ if REPENTOGON then
     local room = level:GetCurrentRoom()
     local roomDesc = level:GetCurrentRoomDesc()
     
-    if room:GetType() == RoomType.ROOM_DEVIL or room:GetType() == RoomType.ROOM_ANGEL then
-      if mod.handleNewRoom and roomDesc.GridIndex == GridRooms.ROOM_DEBUG_IDX then
-        mod:clearRoom()
-        mod:centerPlayers()
-        mod:updateRoomColors()
-        hud:ShowItemText(mod:localize('Items', '#DUALITY_NAME'), mod:localize('Items', '#DUALITY_DESCRIPTION'), false)
-        room:TrySpawnDevilRoomDoor(false, true) -- no animation/sound if we're displaying text
-        room:Update() -- looks better when continuing
-      elseif roomDesc.GridIndex == GridRooms.ROOM_DEVIL_IDX then
+    if mod.state.handleNewRoom and roomDesc.GridIndex == GridRooms.ROOM_DEBUG_IDX and room:GetType() == RoomType.ROOM_ANGEL then
+      mod:clearRoom()
+      mod:centerPlayers()
+      mod:updateRoomColors()
+      hud:ShowItemText(mod:localize('Items', '#DUALITY_NAME'), mod:localize('Items', '#DUALITY_DESCRIPTION'), false)
+      room:TrySpawnDevilRoomDoor(false, true) -- no animation/sound if we're displaying text
+      room:Update() -- looks better when continuing
+    else
+      if roomDesc.GridIndex == GridRooms.ROOM_DEVIL_IDX and (room:GetType() == RoomType.ROOM_DEVIL or room:GetType() == RoomType.ROOM_ANGEL) then
         mod:fixDevilRoomDoors()
       end
+      
+      mod.state.handleNewRoom = false
     end
     
     if level:GetPreviousRoomIndex() >= 0 then
       mod.state.previousRoomIdx = level:GetPreviousRoomIndex()
     end
-    
-    mod.handleNewRoom = false
   end
   
   -- filtered to CARD_JOKER
@@ -113,7 +116,7 @@ if REPENTOGON then
     
     Isaac.ExecuteCommand('goto s.angel') -- angel over devil so we don't trigger STATE_DEVILROOM_VISITED
     game:StartRoomTransition(GridRooms.ROOM_DEBUG_IDX, Direction.NO_DIRECTION, RoomTransitionAnim.TELEPORT, player, Dimension.CURRENT)
-    mod.handleNewRoom = true
+    mod.state.handleNewRoom = true
   end
   
   -- mimic red room colors
