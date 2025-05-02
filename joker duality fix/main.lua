@@ -4,6 +4,8 @@ local game = Game()
 
 if REPENTOGON then
   mod.onGameStartHasRun = false
+  mod.stateAngelRoomSpawned = nil
+  mod.stateDevilRoomSpawned = nil
   
   mod.state = {}
   mod.state.handleNewRoom = false
@@ -44,6 +46,8 @@ if REPENTOGON then
     end
     
     mod.onGameStartHasRun = false
+    mod.stateAngelRoomSpawned = nil
+    mod.stateDevilRoomSpawned = nil
   end
   
   function mod:onNewRoom()
@@ -63,12 +67,28 @@ if REPENTOGON then
       mod:spawnDevilRoomDoor()
       hud:ShowItemText(mod:localize('Items', '#DUALITY_NAME'), mod:localize('Items', '#DUALITY_DESCRIPTION'), false)
       room:Update() -- looks better when continuing
+      
+      mod.stateAngelRoomSpawned = game:GetStateFlag(GameStateFlag.STATE_FAMINE_SPAWNED) -- repurposed
+      mod.stateDevilRoomSpawned = game:GetStateFlag(GameStateFlag.STATE_DEVILROOM_SPAWNED)
     else
-      if roomDesc.GridIndex == GridRooms.ROOM_DEVIL_IDX and (room:GetType() == RoomType.ROOM_DEVIL or room:GetType() == RoomType.ROOM_ANGEL) then
+      if roomDesc.GridIndex == GridRooms.ROOM_DEVIL_IDX and (room:GetType() == RoomType.ROOM_DEVIL or room:GetType() == RoomType.ROOM_ANGEL) and
+         level:GetPreviousRoomIndex() == GridRooms.ROOM_DEBUG_IDX
+      then
+        if mod.state.handleNewRoom then
+          if mod.stateAngelRoomSpawned ~= nil then
+            game:SetStateFlag(GameStateFlag.STATE_FAMINE_SPAWNED, mod.stateAngelRoomSpawned) -- reset state (normal joker behavior)
+          end
+          if mod.stateDevilRoomSpawned ~= nil then
+            game:SetStateFlag(GameStateFlag.STATE_DEVILROOM_SPAWNED, mod.stateDevilRoomSpawned)
+          end
+        end
+        
         mod:fixDevilRoomDoors()
       end
       
       mod.state.handleNewRoom = false
+      mod.stateAngelRoomSpawned = nil
+      mod.stateDevilRoomSpawned = nil
     end
     
     if level:GetPreviousRoomIndex() >= 0 then
