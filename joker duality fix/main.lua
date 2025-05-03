@@ -9,6 +9,7 @@ if REPENTOGON then
   
   mod.state = {}
   mod.state.handleNewRoom = false
+  mod.state.maybeHandleNewRoom = false -- glowing hourglass
   mod.state.previousRoomIdx = -1 -- don't get stuck in an infinite loop off the map
   
   function mod:localize(category, key)
@@ -21,8 +22,10 @@ if REPENTOGON then
       local _, state = pcall(json.decode, mod:LoadData())
       
       if type(state) == 'table' then
-        if type(state.handleNewRoom) == 'boolean' then
-          mod.state.handleNewRoom = state.handleNewRoom -- stage api can break this on continue
+        for _, v in ipairs({ 'handleNewRoom', 'maybeHandleNewRoom' }) do
+          if type(state[v]) == 'boolean' then
+            mod.state[v] = state[v] -- stage api can break this on continue
+          end
         end
         if math.type(state.previousRoomIdx) == 'integer' and state.previousRoomIdx >= 0 then
           mod.state.previousRoomIdx = state.previousRoomIdx
@@ -37,11 +40,13 @@ if REPENTOGON then
   function mod:onGameExit(shouldSave)
     if shouldSave then
       mod:SaveData(json.encode(mod.state))
+      mod.state.maybeHandleNewRoom = false
       mod.state.handleNewRoom = false
       mod.state.previousRoomIdx = -1
     else
       mod.state.previousRoomIdx = -1
       mod.state.handleNewRoom = false
+      mod.state.maybeHandleNewRoom = false
       mod:SaveData(json.encode(mod.state))
     end
     
@@ -68,6 +73,7 @@ if REPENTOGON then
       hud:ShowItemText(mod:localize('Items', '#DUALITY_NAME'), mod:localize('Items', '#DUALITY_DESCRIPTION'), false)
       room:Update() -- looks better when continuing
       
+      mod.state.maybeHandleNewRoom = false
       mod.stateAngelRoomSpawned = game:GetStateFlag(GameStateFlag.STATE_FAMINE_SPAWNED) -- repurposed
       mod.stateDevilRoomSpawned = game:GetStateFlag(GameStateFlag.STATE_DEVILROOM_SPAWNED)
     else
@@ -83,7 +89,10 @@ if REPENTOGON then
           end
         end
         
-        mod:fixDevilRoomDoors()
+        mod.state.maybeHandleNewRoom = mod.state.handleNewRoom -- glowing hourglass doesn't work on continue
+        mod:fixDevilRoomDoors() -- support fixing doors on continue
+      else
+        mod.state.maybeHandleNewRoom = false
       end
       
       mod.state.handleNewRoom = false
@@ -112,6 +121,33 @@ if REPENTOGON then
     if mod:hasDuality() and not mod:devilRoomSpawned() and mod:willTeleport2DevilRoom() then
       mod:gotoDebugRoom(player)
       return true
+    end
+  end
+  
+  -- filtered to COLLECTIBLE_GLOWING_HOUR_GLASS
+  -- car battery has no effect
+  -- this doesn't support rewind or game:StartRoomTransition w/ GLOWING_HOURGLASS anim
+  function mod:onUseItem(collectible, rng, player, useFlags, slot, varData)
+    local level = game:GetLevel()
+    local room = level:GetCurrentRoom()
+    local roomDesc = level:GetCurrentRoomDesc()
+    
+    if roomDesc.GridIndex == GridRooms.ROOM_DEVIL_IDX and (room:GetType() == RoomType.ROOM_DEVIL or room:GetType() == RoomType.ROOM_ANGEL) and
+       mod.state.maybeHandleNewRoom and level:GetPreviousRoomIndex() == GridRooms.ROOM_DEBUG_IDX
+    then
+      local actualVarData = 0
+      if useFlags & UseFlag.USE_CUSTOMVARDATA == UseFlag.USE_CUSTOMVARDATA then
+        actualVarData = varData
+      elseif useFlags & UseFlag.USE_OWNED == UseFlag.USE_OWNED and slot >= ActiveSlot.SLOT_PRIMARY and slot <= ActiveSlot.SLOT_POCKET2 then
+        local itemDesc = player:GetActiveItemDesc(slot)
+        if itemDesc and itemDesc.Item == collectible then
+          actualVarData = itemDesc.VarData
+        end
+      end
+      
+      if actualVarData < 3 then -- at 3 acts like a regular hourglass
+        mod.state.handleNewRoom = true
+      end
     end
   end
   
@@ -290,5 +326,6 @@ if REPENTOGON then
   mod:AddCallback(ModCallbacks.MC_POST_NEW_ROOM, mod.onNewRoom)
   mod:AddCallback(ModCallbacks.MC_PRE_USE_CARD, mod.onPreUseCard, Card.CARD_JOKER)
   mod:AddCallback(ModCallbacks.MC_PRE_USE_ITEM, mod.onPreUseItem, CollectibleType.COLLECTIBLE_TELEPORT_2)
+  mod:AddCallback(ModCallbacks.MC_USE_ITEM, mod.onUseItem, CollectibleType.COLLECTIBLE_GLOWING_HOUR_GLASS)
   mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_REDCHEST)
 end
