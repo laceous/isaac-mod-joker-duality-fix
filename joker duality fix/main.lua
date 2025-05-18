@@ -328,4 +328,8 @@ if REPENTOGON then
   mod:AddCallback(ModCallbacks.MC_PRE_USE_ITEM, mod.onPreUseItem, CollectibleType.COLLECTIBLE_TELEPORT_2)
   mod:AddCallback(ModCallbacks.MC_USE_ITEM, mod.onUseItem, CollectibleType.COLLECTIBLE_GLOWING_HOUR_GLASS)
   mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_REDCHEST)
+  -- technically, the following chest types can also teleport you to a devil room, but they don't seem to appear naturally in the game
+  -- PICKUP_CHEST, PICKUP_SPIKEDCHEST, PICKUP_MIMICCHEST, PICKUP_OLDCHEST, PICKUP_WOODENCHEST, PICKUP_MOMSCHEST
+  -- PICKUP_ETERNALCHEST, PICKUP_MEGACHEST, PICKUP_LOCKEDCHEST : would likely need additional key checking
+  -- PICKUP_BOMBCHEST, PICKUP_HAUNTEDCHEST : would likely need different callbacks
 end
