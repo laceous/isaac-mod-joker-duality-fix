@@ -151,16 +151,62 @@ if REPENTOGON then
     end
   end
   
-  -- filtered to PICKUP_REDCHEST
+  -- filtered to PICKUP_REDCHEST/PICKUP_CHEST/PICKUP_WOODENCHEST/PICKUP_MOMSCHEST/PICKUP_ETERNALCHEST/PICKUP_OLDCHEST/PICKUP_LOCKEDCHEST/PICKUP_MEGACHEST/PICKUP_SPIKEDCHEST/PICKUP_MIMICCHEST
   function mod:onPrePickupCollision(pickup, collider, low)
-    if collider.Type == EntityType.ENTITY_PLAYER and pickup.SubType == ChestSubType.CHEST_CLOSED then
+    if collider.Type == EntityType.ENTITY_PLAYER and (pickup.SubType == ChestSubType.CHEST_CLOSED or (pickup.Variant == PickupVariant.PICKUP_ETERNALCHEST and pickup.SubType == 2)) then
       local player = collider:ToPlayer()
       local isBaby = player:GetBabySkin() ~= BabySubType.BABY_UNASSIGNED
+      
       if not isBaby and mod:hasDuality() and not mod:devilRoomSpawned() and mod:willChestTeleportToDevilRoom(pickup) then
+        if pickup.Variant == PickupVariant.PICKUP_LOCKEDCHEST or pickup.Variant == PickupVariant.PICKUP_ETERNALCHEST or pickup.Variant == PickupVariant.PICKUP_OLDCHEST or pickup.Variant == PickupVariant.PICKUP_MEGACHEST then
+          if not player:HasTrinket(TrinketType.TRINKET_PAPER_CLIP, false) or pickup.Variant == PickupVariant.PICKUP_MEGACHEST then
+            if mod:isPayToPlayChest(pickup) then
+              if player:GetNumCoins() > 0 then
+                player:AddCoins(-1)
+              else
+                return
+              end
+            else
+              if player:HasGoldenKey() then
+                -- nothing to do
+              elseif player:GetNumKeys() > 0 then
+                player:AddKeys(-1)
+              else
+                return
+              end
+            end
+          end
+        elseif pickup.Variant == PickupVariant.PICKUP_SPIKEDCHEST or pickup.Variant == PickupVariant.PICKUP_MIMICCHEST then
+          -- disable damage for now, there's too many false positives: spirit sword (reported as player), flat file (sprite state?), etc
+          --player:TakeDamage(1, DamageFlag.DAMAGE_CHEST | DamageFlag.DAMAGE_NO_PENALTIES, EntityRef(pickup), 30)
+        end
+        
         pickup.SubType = ChestSubType.CHEST_OPENED
+        mod:spawnLootList(pickup)
         mod:gotoDebugRoom(player)
         return true
       end
+    end
+  end
+  
+  -- magneto support!
+  -- filtered to PICKUP_REDCHEST/PICKUP_CHEST/PICKUP_WOODENCHEST/PICKUP_ETERNALCHEST/PICKUP_OLDCHEST/PICKUP_LOCKEDCHEST/PICKUP_SPIKEDCHEST/PICKUP_MIMICCHEST
+  function mod:onPrePickupUpdate(pickup)
+    for _, v in ipairs(Isaac.FindInRadius(pickup.Position, 70, EntityPartition.PLAYER)) do
+      if v.Type == EntityType.ENTITY_PLAYER then
+        local player = v:ToPlayer()
+        if pickup.Variant == PickupVariant.PICKUP_LOCKEDCHEST or pickup.Variant == PickupVariant.PICKUP_ETERNALCHEST or pickup.Variant == PickupVariant.PICKUP_OLDCHEST then
+          if not player:HasTrinket(TrinketType.TRINKET_PAPER_CLIP, false) then
+            goto continue
+          end
+        end
+        
+        if player:HasCollectible(CollectibleType.COLLECTIBLE_MAGNETO, false) then
+          return mod:onPrePickupCollision(pickup, v, false)
+        end
+      end
+      
+      ::continue::
     end
   end
   
@@ -311,6 +357,90 @@ if REPENTOGON then
     return false
   end
   
+  function mod:spawnLootList(chest)
+    local tbl = {}
+    for _, lootListEntry in ipairs(chest:GetLootList():GetEntries()) do
+      table.insert(tbl, { type = lootListEntry:GetType(), variant = lootListEntry:GetVariant(), subtype = lootListEntry:GetSubType(), seed = lootListEntry:GetSeed() })
+    end
+    for _, v in ipairs(tbl) do
+      if v.type ~= EntityType.ENTITY_NULL then
+        if v.seed == nil or v.seed <= 0 then
+          local rand = Random()
+          v.seed = rand <= 0 and 1 or rand
+        end
+        local pos = chest.Position
+        if v.type == EntityType.ENTITY_PICKUP and v.variant ~= PickupVariant.PICKUP_COLLECTIBLE then
+          pos = Isaac.GetFreeNearPosition(pos, 3) -- room:FindFreePickupSpawnPosition
+        end
+        -- calling spawn in the loop above causes intermittent issues for some reason
+        -- the type/variant/subtype numbers are way too big
+        local entity = game:Spawn(v.type, v.variant, pos, Vector.Zero, nil, v.subtype, v.seed)
+        if entity and entity.Type == EntityType.ENTITY_PICKUP and entity.Variant == PickupVariant.PICKUP_COLLECTIBLE then
+          local pickup = entity:ToPickup()
+          pickup:SetAlternatePedestal(mod:getPedestalType(chest))
+        end
+      end
+    end
+  end
+  
+  function mod:getPedestalType(chest)
+    local variantToType = {
+      [PickupVariant.PICKUP_CHEST]        = PedestalType.CHEST,
+      [PickupVariant.PICKUP_BOMBCHEST]    = PedestalType.STONE_CHEST,
+      [PickupVariant.PICKUP_SPIKEDCHEST]  = PedestalType.SPIKED_CHEST,
+      [PickupVariant.PICKUP_ETERNALCHEST] = PedestalType.ETERNAL_CHEST,
+      [PickupVariant.PICKUP_MIMICCHEST]   = PedestalType.SPIKED_CHEST,
+      [PickupVariant.PICKUP_OLDCHEST]     = PedestalType.OLD_CHEST,
+      [PickupVariant.PICKUP_WOODENCHEST]  = PedestalType.WOODEN_CHEST,
+      [PickupVariant.PICKUP_MEGACHEST]    = PedestalType.MEGA_CHEST,
+      [PickupVariant.PICKUP_LOCKEDCHEST]  = PedestalType.GOLDEN_CHEST,
+      [PickupVariant.PICKUP_REDCHEST]     = PedestalType.RED_CHEST,
+      [PickupVariant.PICKUP_MOMSCHEST]    = PedestalType.MOMS_CHEST,
+    }
+    local typeToCoinType = {
+      [PedestalType.GOLDEN_CHEST]  = PedestalType.GOLDEN_CHEST_COIN_SLOT,
+      [PedestalType.ETERNAL_CHEST] = PedestalType.ETERNAL_CHEST_COIN_SLOT,
+      [PedestalType.OLD_CHEST]     = PedestalType.OLD_CHEST_COIN_SLOT,
+      [PedestalType.MEGA_CHEST]    = PedestalType.MEGA_CHEST_COIN_SLOT,
+    }
+    
+    local pedestalType = variantToType[chest.Variant]
+    if pedestalType then
+      if mod:isPayToPlayChest(chest) and typeToCoinType[pedestalType] then
+        return typeToCoinType[pedestalType]
+      end
+      
+      return pedestalType
+    end
+    
+    return PedestalType.DEFAULT
+  end
+  
+  -- there has to be a better way to do this
+  -- different chests can be in different states in the room depending on when you picked up pay to play
+  function mod:isPayToPlayChest(chest)
+    local sprite = chest:GetSprite()
+    
+    if chest.Variant == PickupVariant.PICKUP_LOCKEDCHEST or chest.Variant == PickupVariant.PICKUP_ETERNALCHEST then
+      local body = sprite:GetLayer('body')
+      if body and body:GetSpritesheetPath() == 'gfx/Items/Pick Ups/Pickup_005_Chests_coinslot.png' then
+        return true
+      end
+    elseif chest.Variant == PickupVariant.PICKUP_OLDCHEST then
+      local body = sprite:GetLayer('body')
+      if body and body:GetSpritesheetPath() == 'gfx/Items/Pick Ups/dirty_chest_coinslot.png' then
+        return true
+      end
+    elseif chest.Variant == PickupVariant.PICKUP_MEGACHEST then
+      local body = sprite:GetLayer('body')
+      if body and body:GetSpritesheetPath() == 'gfx/Items/Pick Ups/mega_chest_coinslot.png' then
+        return true
+      end
+    end
+    
+    return false
+  end
+  
   function mod:hasDuality()
     return PlayerManager.AnyoneHasCollectible(CollectibleType.COLLECTIBLE_DUALITY)
   end
@@ -328,8 +458,24 @@ if REPENTOGON then
   mod:AddCallback(ModCallbacks.MC_PRE_USE_ITEM, mod.onPreUseItem, CollectibleType.COLLECTIBLE_TELEPORT_2)
   mod:AddCallback(ModCallbacks.MC_USE_ITEM, mod.onUseItem, CollectibleType.COLLECTIBLE_GLOWING_HOUR_GLASS)
   mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_REDCHEST)
-  -- technically, the following chest types can also teleport you to a devil room, but they don't seem to appear naturally in the game
-  -- PICKUP_CHEST, PICKUP_SPIKEDCHEST, PICKUP_MIMICCHEST, PICKUP_OLDCHEST, PICKUP_WOODENCHEST, PICKUP_MOMSCHEST
-  -- PICKUP_ETERNALCHEST, PICKUP_MEGACHEST, PICKUP_LOCKEDCHEST : would likely need additional key checking
-  -- PICKUP_BOMBCHEST, PICKUP_HAUNTEDCHEST : would likely need different callbacks
+  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_CHEST)
+  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_WOODENCHEST)
+  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_MOMSCHEST)
+  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_ETERNALCHEST)
+  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_OLDCHEST)
+  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_LOCKEDCHEST)
+  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_MEGACHEST)
+  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_SPIKEDCHEST)
+  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_MIMICCHEST)
+  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_REDCHEST)
+  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_CHEST)
+  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_WOODENCHEST)
+  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_ETERNALCHEST)
+  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_OLDCHEST)
+  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_LOCKEDCHEST)
+  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_SPIKEDCHEST)
+  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_MIMICCHEST)
+  -- todo: PICKUP_BOMBCHEST/PICKUP_HAUNTEDCHEST need different implementations
+  -- todo: override chest:TryOpenChest for other mods that might call this
+  -- keep an eye on: https://github.com/TeamREPENTOGON/REPENTOGON/issues/463
 end
