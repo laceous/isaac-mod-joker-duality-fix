@@ -451,6 +451,59 @@ if REPENTOGON then
     return devilRoom.Data ~= nil
   end
   
+  -- override code taken from resources\scripts\main.lua
+  function mod:overrideApi()
+    local META, META0
+    local function BeginClass(T)
+      META = {}
+      if type(T) == 'function' then
+        META0 = getmetatable(T())
+      else
+        META0 = getmetatable(T).__class
+      end
+    end
+    
+    local function EndClass()
+      local oldIndex = META0.__index
+      local newMeta = META
+      
+      rawset(META0, '__index', function(self, k)
+        return newMeta[k] or oldIndex(self, k)
+      end)
+    end
+    
+    BeginClass(EntityPickup)
+    
+    local Entity_Pickup_TryOpenChest = META0.TryOpenChest
+    function META:TryOpenChest(player)
+      if self.Variant == PickupVariant.PICKUP_CHEST or
+         self.Variant == PickupVariant.PICKUP_BOMBCHEST or
+         self.Variant == PickupVariant.PICKUP_SPIKEDCHEST or
+         self.Variant == PickupVariant.PICKUP_ETERNALCHEST or
+         self.Variant == PickupVariant.PICKUP_MIMICCHEST or
+         self.Variant == PickupVariant.PICKUP_OLDCHEST or
+         self.Variant == PickupVariant.PICKUP_WOODENCHEST or
+         self.Variant == PickupVariant.PICKUP_MEGACHEST or
+         self.Variant == PickupVariant.PICKUP_HAUNTEDCHEST or
+         self.Variant == PickupVariant.PICKUP_LOCKEDCHEST or
+         self.Variant == PickupVariant.PICKUP_REDCHEST or
+         self.Variant == PickupVariant.PICKUP_MOMSCHEST
+      then
+        if self.SubType >= ChestSubType.CHEST_CLOSED and mod:hasDuality() and not mod:devilRoomSpawned() and mod:willChestTeleportToDevilRoom(self) then
+          self.SubType = ChestSubType.CHEST_OPENED
+          mod:spawnLootList(self)
+          mod:gotoDebugRoom(player)
+          return true
+        end
+      end
+      
+      return Entity_Pickup_TryOpenChest(self, player)
+    end
+    
+    EndClass()
+  end
+  
+  --mod:overrideApi() -- i'm pretty sure only a single mod can override EntityPickup like this so leaving disabled for now
   mod:AddCallback(ModCallbacks.MC_POST_GAME_STARTED, mod.onGameStart)
   mod:AddCallback(ModCallbacks.MC_PRE_GAME_EXIT, mod.onGameExit)
   mod:AddCallback(ModCallbacks.MC_POST_NEW_ROOM, mod.onNewRoom)
@@ -476,6 +529,5 @@ if REPENTOGON then
   mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_SPIKEDCHEST)
   mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_MIMICCHEST)
   -- todo: PICKUP_BOMBCHEST/PICKUP_HAUNTEDCHEST need different implementations
-  -- todo: override chest:TryOpenChest for other mods that might call this
   -- keep an eye on: https://github.com/TeamREPENTOGON/REPENTOGON/issues/463
 end
