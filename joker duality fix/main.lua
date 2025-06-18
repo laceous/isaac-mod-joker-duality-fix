@@ -176,9 +176,11 @@ if REPENTOGON then
               end
             end
           end
-        elseif pickup.Variant == PickupVariant.PICKUP_SPIKEDCHEST or pickup.Variant == PickupVariant.PICKUP_MIMICCHEST then
-          -- disable damage for now, there's too many false positives: spirit sword (reported as player), flat file (sprite state?), etc
-          --player:TakeDamage(1, DamageFlag.DAMAGE_CHEST | DamageFlag.DAMAGE_NO_PENALTIES, EntityRef(pickup), 30)
+        elseif pickup.Variant == PickupVariant.PICKUP_SPIKEDCHEST then -- PICKUP_MIMICCHEST turns into PICKUP_SPIKEDCHEST if damage should be taken
+          -- make sure we're colliding, otherwise something like spirit sword may have been used
+          if pickup:GetCollisionCapsule():Collide(player:GetCollisionCapsule(), Vector.Zero) then -- not sure what the vector does
+            player:TakeDamage(1, DamageFlag.DAMAGE_CHEST | DamageFlag.DAMAGE_NO_PENALTIES, EntityRef(pickup), 30)
+          end
         end
         
         pickup.SubType = ChestSubType.CHEST_OPENED
