@@ -76,6 +76,14 @@ if REPENTOGON then
       mod.state.maybeHandleNewRoom = false
       mod.stateAngelRoomSpawned = game:GetStateFlag(GameStateFlag.STATE_FAMINE_SPAWNED) -- repurposed
       mod.stateDevilRoomSpawned = game:GetStateFlag(GameStateFlag.STATE_DEVILROOM_SPAWNED)
+    elseif roomDesc.GridIndex == GridRooms.ROOM_DEBUG_IDX and room:GetType() == RoomType.ROOM_ANGEL and
+           (mod.state.maybeHandleNewRoom or mod:isTrappedInRoomIdx(GridRooms.ROOM_DEBUG_IDX)) -- die in devil room and revive in temp angel room
+    then
+      mod.state.maybeHandleNewRoom = false
+      mod:clearRoom(true)
+      mod:updateRoomColors()
+      mod:fixDevilRoomDoors()
+      room:Update()
     else
       if roomDesc.GridIndex == GridRooms.ROOM_DEVIL_IDX and (room:GetType() == RoomType.ROOM_DEVIL or room:GetType() == RoomType.ROOM_ANGEL) and
          level:GetPreviousRoomIndex() == GridRooms.ROOM_DEBUG_IDX
@@ -245,7 +253,7 @@ if REPENTOGON then
     end
   end
   
-  function mod:clearRoom()
+  function mod:clearRoom(skipDoors)
     local room = game:GetRoom()
     
     for i = 0, room:GetGridSize() - 1 do
@@ -259,8 +267,10 @@ if REPENTOGON then
       end
     end
     
-    for i = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do
-      room:RemoveDoor(i)
+    if not skipDoors then
+      for i = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do
+        room:RemoveDoor(i)
+      end
     end
     
     for _, entity in ipairs(Isaac.GetRoomEntities()) do
@@ -286,6 +296,19 @@ if REPENTOGON then
         end
       end
     end
+  end
+  
+  function mod:isTrappedInRoomIdx(roomIdx)
+    local room = game:GetRoom()
+    
+    for i = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do
+      local door = room:GetDoor(i)
+      if door and door.TargetRoomIndex ~= roomIdx then
+        return false
+      end
+    end
+    
+    return true
   end
   
   function mod:willTeleport2DevilRoom()
