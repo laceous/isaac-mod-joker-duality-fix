@@ -159,6 +159,22 @@ if REPENTOGON then
     end
   end
   
+  function mod:onPreOpenChest(pickup, player)
+    if pickup.SubType ~= ChestSubType.CHEST_OPENED and mod:hasDuality() and not mod:devilRoomSpawned() and mod:willChestTeleportToDevilRoom(pickup) then
+      -- we have to handle taking damage
+      if pickup.Variant == PickupVariant.PICKUP_SPIKEDCHEST then
+        if pickup:GetCollisionCapsule():Collide(player:GetCollisionCapsule(), Vector.Zero) then
+          player:TakeDamage(1, DamageFlag.DAMAGE_CHEST | DamageFlag.DAMAGE_NO_PENALTIES, EntityRef(pickup), 30)
+        end
+      end
+      
+      pickup.SubType = ChestSubType.CHEST_OPENED
+      mod:spawnLootList(pickup)
+      mod:gotoDebugRoom(player)
+      return false
+    end
+  end
+  
   -- filtered to PICKUP_REDCHEST/PICKUP_CHEST/PICKUP_WOODENCHEST/PICKUP_MOMSCHEST/PICKUP_ETERNALCHEST/PICKUP_OLDCHEST/PICKUP_LOCKEDCHEST/PICKUP_MEGACHEST/PICKUP_SPIKEDCHEST/PICKUP_MIMICCHEST
   function mod:onPrePickupCollision(pickup, collider, low)
     if collider.Type == EntityType.ENTITY_PLAYER and (pickup.SubType == ChestSubType.CHEST_CLOSED or (pickup.Variant == PickupVariant.PICKUP_ETERNALCHEST and pickup.SubType == 2)) then
@@ -535,24 +551,27 @@ if REPENTOGON then
   mod:AddCallback(ModCallbacks.MC_PRE_USE_CARD, mod.onPreUseCard, Card.CARD_JOKER)
   mod:AddCallback(ModCallbacks.MC_PRE_USE_ITEM, mod.onPreUseItem, CollectibleType.COLLECTIBLE_TELEPORT_2)
   mod:AddCallback(ModCallbacks.MC_USE_ITEM, mod.onUseItem, CollectibleType.COLLECTIBLE_GLOWING_HOUR_GLASS)
-  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_REDCHEST)
-  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_CHEST)
-  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_WOODENCHEST)
-  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_MOMSCHEST)
-  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_ETERNALCHEST)
-  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_OLDCHEST)
-  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_LOCKEDCHEST)
-  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_MEGACHEST)
-  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_SPIKEDCHEST)
-  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_MIMICCHEST)
-  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_REDCHEST)
-  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_CHEST)
-  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_WOODENCHEST)
-  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_ETERNALCHEST)
-  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_OLDCHEST)
-  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_LOCKEDCHEST)
-  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_SPIKEDCHEST)
-  mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_MIMICCHEST)
-  -- todo: PICKUP_BOMBCHEST/PICKUP_HAUNTEDCHEST need different implementations
-  -- keep an eye on: https://github.com/TeamREPENTOGON/REPENTOGON/issues/463
+  if ModCallbacks.MC_PRE_OPEN_CHEST then
+    -- this should additionally support PICKUP_BOMBCHEST/PICKUP_HAUNTEDCHEST
+    mod:AddCallback(ModCallbacks.MC_PRE_OPEN_CHEST, mod.onPreOpenChest)
+  else
+    mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_REDCHEST)
+    mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_CHEST)
+    mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_WOODENCHEST)
+    mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_MOMSCHEST)
+    mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_ETERNALCHEST)
+    mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_OLDCHEST)
+    mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_LOCKEDCHEST)
+    mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_MEGACHEST)
+    mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_SPIKEDCHEST)
+    mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_COLLISION, mod.onPrePickupCollision, PickupVariant.PICKUP_MIMICCHEST)
+    mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_REDCHEST)
+    mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_CHEST)
+    mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_WOODENCHEST)
+    mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_ETERNALCHEST)
+    mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_OLDCHEST)
+    mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_LOCKEDCHEST)
+    mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_SPIKEDCHEST)
+    mod:AddCallback(ModCallbacks.MC_PRE_PICKUP_UPDATE, mod.onPrePickupUpdate, PickupVariant.PICKUP_MIMICCHEST)
+  end
 end
